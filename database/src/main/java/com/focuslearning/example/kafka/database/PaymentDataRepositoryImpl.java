@@ -4,14 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.focuslearning.example.kafka.PaymentData;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.PostConstruct;
-import javax.persistence.EntityManager;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +35,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
     public int save(PaymentData paymentData) {
 
         try {
-            return jdbcTemplate.update("INSERT INTO replay_message (id,message,createdTime,expireTime,replay,status,country)" +
+            return jdbcTemplate.update("INSERT INTO replay_message (paymentid,message,createdTime,expireTime,replay,status,country)" +
                     " VALUES (?,?,?,?,?,?,?) ",new Object[]{paymentData.getPaymentid(),mapper.writeValueAsString(paymentData), paymentData.getCreatedtime(),
                     paymentData.getExpiretime(),paymentData.getRetryTimes()+1,RecordStatus.NEW.ordinal(),paymentData.getCountry()});
         } catch (JsonProcessingException e) {
@@ -51,13 +48,13 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
     public int update(PaymentData paymentData) {
 
         return jdbcTemplate.update(
-                "update replay_message set STATUS = ?,replay=replay+1 where id = ? and STATUS in ( ?,?)",
+                "update replay_message set STATUS = ?,replay=replay+1 where paymentid = ? and STATUS in ( ?,?)",
                 RecordStatus.REPLAY.ordinal(),paymentData.getPaymentid(),RecordStatus.REPLAY.ordinal(),RecordStatus.NEW.ordinal());
     }
 
     @Override
     public Optional<PaymentData> findById(String id) {
-        return  jdbcTemplate.query("SELECT message from replay_message WHERE id=?",
+        return  jdbcTemplate.query("SELECT message from replay_message WHERE paymentid=?",
                 BeanPropertyRowMapper.newInstance(PaymentData.class), id).stream().findFirst();
 
     }
@@ -76,7 +73,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
     @Override
     public List<Object[]> findAllByLimit(int n) {
         List<PaymentData> list = new ArrayList<>();
-        return  jdbcTemplate.query("SELECT message,id as paymentid from replay_message WHERE status=?",
+        return  jdbcTemplate.query("SELECT message,paymentid as paymentid from replay_message WHERE status=?",
                 BeanPropertyRowMapper.newInstance(PaymentData.class), 0).stream().map(paymentData -> {
                     Object[] object = new Object[2];
                     object[0]=paymentData.getPaymentid();
@@ -99,5 +96,10 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
     @Override
     public int deleteAll() {
         return 0;
+    }
+
+    @Override
+    public int updateById(String whereClause) {
+        return jdbcTemplate.update("UPDATE replay_message SET status=2 where paymentid in " + whereClause);
     }
 }

@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 public class PaymentData {
 
     String amount;
-    @JsonProperty("id")
     String paymentid;
     String state;
     String dateTime;

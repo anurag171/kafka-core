@@ -23,8 +23,8 @@ import javax.annotation.PostConstruct;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -72,11 +72,11 @@ public class AppScheduler {
                 .retryTimes(0)
                 .country(faker.country().countryCode2().toUpperCase())
                 .createdtime(LocalDateTime.now())
-                .expiretime(LocalDateTime.now().plusMinutes(5L))
+                .expiretime(LocalDateTime.now().plusMinutes(2L))
                 .build();
     }
 
-    @Scheduled(fixedRate = 2000)
+    @Scheduled(fixedRate = 20000)
     public void clearPayments(){
         log.info("[C] Starting new cycle of scheduled task");
        List<PaymentData> paymentDataList = paymentDataRepository.findAll().stream().map(paymentData -> {
@@ -89,15 +89,16 @@ public class AppScheduler {
        String whereClause = paymentDataList.stream()
                                     .filter(paymentData ->paymentData.getExpiretime().isBefore(LocalDateTime.now()))
                                     .map(paymentData -> paymentData.getPaymentid())
-                                    .collect(Collectors.joining(",","(",")"));
+                                    .collect(Collectors.joining("','","('","')"));
 
         log.info("Where clause {}",whereClause);
+        paymentDataRepository.updateById(whereClause);
 
 
         log.info("[C] Done the cycle of scheduled task");
     }
 
-    @Scheduled(fixedDelay = 10000, initialDelay = 10000)
+    @Scheduled(fixedDelay = 20000, initialDelay = 10000)
     public void stalePaymentGenerator() {
         log.info("[B] Starting new cycle of scheduled task");
         List<Object[]> paymentDataList =paymentDataRepository.findAllByLimit(200);
