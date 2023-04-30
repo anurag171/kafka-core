@@ -1,0 +1,25 @@
+logging:
+  level:
+    root: info
+    web: info
+spring:
+  kafka:
+    consumer:
+      properties:
+        spring.json.trusted.packages: "com.focuslearning.example.kafka.PaymentData"
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: always
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 100
+      minimum-idle: 10
+      allow-pool-suspension: false
+      pool-name: my-local-db-pool
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: magic123
