@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.focuslearning.example.kafka.consumer.KafkaConsumer;
 import com.focuslearning.example.kafka.database.PaymentDataRepository;
+import com.focuslearning.example.kafka.database.RecordStatus;
 import com.focuslearning.example.kafka.producer.KafkaProducer;
 import com.github.javafaker.Faker;
 import lombok.extern.log4j.Log4j2;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -54,7 +56,7 @@ public class AppScheduler {
     public void freshPaymentGenerator() {
         log.info("Starting fresh payment generator");
         ExecutorService executorService = Executors.newFixedThreadPool(10);
-        IntStream.rangeClosed(1,2).forEach(i->executorService.submit(new CallPayment(i,restTemplate,kafkaProducer)));
+        IntStream.rangeClosed(1,20).forEach(i->executorService.submit(new CallPayment(i,restTemplate,kafkaProducer)));
         log.info("Stopping fresh payment generator");
     }
 
@@ -72,13 +74,18 @@ public class AppScheduler {
                 .retryTimes(0)
                 .country(faker.country().countryCode2().toUpperCase())
                 .createdtime(LocalDateTime.now())
-                .expiretime(LocalDateTime.now().plusMinutes(2L))
+                .expiretime(LocalDateTime.now().plusMinutes(1L))
+                .status(RecordStatus.NEW.getAction())
                 .build();
     }
 
     @Scheduled(fixedRate = 20000)
     public void clearPayments(){
         log.info("[C] Starting new cycle of scheduled task");
+        Predicate<PaymentData> predicate1= paymentData -> paymentData.getStatus().equals(RecordStatus.REPLAY.getAction());
+        Predicate<PaymentData> predicate2= paymentData -> paymentData.getStatus().equals(RecordStatus.NEW.getAction());
+        Predicate<PaymentData> predicate= predicate1.or(predicate2);
+
        List<PaymentData> paymentDataList = paymentDataRepository.findAll().stream().map(paymentData -> {
            try {
                return mapper.readValue(paymentData.getMessage(),PaymentData.class);
@@ -87,9 +94,10 @@ public class AppScheduler {
            }
        return null;}).collect(Collectors.toList());
        String whereClause = paymentDataList.stream()
-                                    .filter(paymentData ->paymentData.getExpiretime().isBefore(LocalDateTime.now()))
-                                    .map(paymentData -> paymentData.getPaymentid())
-                                    .collect(Collectors.joining("','","('","')"));
+                            .filter(predicate)
+                            .filter(paymentData ->paymentData.getExpiretime().isBefore(LocalDateTime.now()))
+                            .map(paymentData -> paymentData.getPaymentid())
+                            .collect(Collectors.joining("','","('","')"));
 
         log.info("Where clause {}",whereClause);
         paymentDataRepository.updateById(whereClause);

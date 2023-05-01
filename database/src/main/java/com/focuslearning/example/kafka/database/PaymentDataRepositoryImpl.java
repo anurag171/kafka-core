@@ -37,7 +37,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
         try {
             return jdbcTemplate.update("INSERT INTO replay_message (paymentid,message,createdTime,expireTime,replay,status,country)" +
                     " VALUES (?,?,?,?,?,?,?) ",new Object[]{paymentData.getPaymentid(),mapper.writeValueAsString(paymentData), paymentData.getCreatedtime(),
-                    paymentData.getExpiretime(),paymentData.getRetryTimes()+1,RecordStatus.NEW.ordinal(),paymentData.getCountry()});
+                    paymentData.getExpiretime(),paymentData.getRetryTimes()+1,RecordStatus.NEW.getAction(),paymentData.getCountry()});
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
@@ -49,7 +49,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
 
         return jdbcTemplate.update(
                 "update replay_message set STATUS = ?,replay=replay+1 where paymentid = ? and STATUS in ( ?,?)",
-                RecordStatus.REPLAY.ordinal(),paymentData.getPaymentid(),RecordStatus.REPLAY.ordinal(),RecordStatus.NEW.ordinal());
+                RecordStatus.REPLAY.getAction(),paymentData.getPaymentid(),RecordStatus.REPLAY.getAction(),RecordStatus.NEW.getAction());
     }
 
     @Override
@@ -66,7 +66,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
 
     @Override
     public List<PaymentData> findAll() {
-        return  jdbcTemplate.query("SELECT * from replay_message ",
+        return  jdbcTemplate.query("SELECT * from replay_message where status in ('R','N')",
                 BeanPropertyRowMapper.newInstance(PaymentData.class));
     }
 
@@ -74,7 +74,7 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
     public List<Object[]> findAllByLimit(int n) {
         List<PaymentData> list = new ArrayList<>();
         return  jdbcTemplate.query("SELECT message,paymentid as paymentid from replay_message WHERE status=?",
-                BeanPropertyRowMapper.newInstance(PaymentData.class), 0).stream().map(paymentData -> {
+                BeanPropertyRowMapper.newInstance(PaymentData.class), "N").stream().map(paymentData -> {
                     Object[] object = new Object[2];
                     object[0]=paymentData.getPaymentid();
                     object[1]=paymentData.getMessage();
@@ -100,6 +100,6 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
 
     @Override
     public int updateById(String whereClause) {
-        return jdbcTemplate.update("UPDATE replay_message SET status=2 where paymentid in " + whereClause);
+        return jdbcTemplate.update("UPDATE replay_message SET status='E' where paymentid in " + whereClause);
     }
 }

@@ -14,7 +14,7 @@ public class PaymentData {
 
     String amount;
     String paymentid;
-    String state;
+    String status;
     String dateTime;
     String from;
     String to;
