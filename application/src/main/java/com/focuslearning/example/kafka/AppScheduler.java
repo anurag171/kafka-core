@@ -25,6 +25,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,8 +41,6 @@ public class AppScheduler {
     @Autowired
     KafkaProducer kafkaProducer;
     @Autowired
-    KafkaConsumer kafkaConsumer;
-    @Autowired
     PaymentDataRepository paymentDataRepository;
 
     ObjectMapper mapper = new ObjectMapper();
@@ -55,11 +54,14 @@ public class AppScheduler {
     @Scheduled(fixedDelay = 30000, initialDelay = 10000)
     public void freshPaymentGenerator() {
         log.info("Starting fresh payment generator");
-        ExecutorService executorService = Executors.newFixedThreadPool(10);
-        IntStream.rangeClosed(1,20).forEach(i->executorService.submit(new CallPayment(i,restTemplate,kafkaProducer)));
+        postPayments();
         log.info("Stopping fresh payment generator");
     }
 
+    private void postPayments() {
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+        IntStream.rangeClosed(1,20).forEach(i->executorService.submit(new CallPayment(i,restTemplate,kafkaProducer)));
+    }
 
 
     private PaymentData paymentDataGenerator() {
@@ -134,7 +136,9 @@ public class AppScheduler {
     @KafkaListener(topics = "payment_topic",containerFactory = "kafkaListenerContainerFactory")
     public void paymentConsumer(@Payload PaymentData paymentData) {
         log.info("Payment Consumer [String] received key {}: | Record: {}", paymentData);
-        int i =paymentDataRepository.findById(paymentData.getPaymentid()).isPresent() ? paymentDataRepository.update(paymentData) : paymentDataRepository.save(paymentData);
+        int i =paymentDataRepository.findById(paymentData.getPaymentid()).isPresent() ?
+                paymentDataRepository.update(paymentData) : paymentDataRepository.save(paymentData);
+        new CallPayment(1,this.restTemplate,this.kafkaProducer).getPaymentDataResponseEntity(paymentData);
         log.info("Done {}",i);
     }
 
@@ -153,6 +157,15 @@ public class AppScheduler {
         public void run() {
             log.info("Processing payment number " + i);
             PaymentData paymentData = paymentDataGenerator();
+            Optional<ResponseEntity<PaymentData>> responseEntity = getPaymentDataResponseEntity(paymentData);
+
+            if(responseEntity.isPresent()){
+                log.info("Response [{}] ", responseEntity.get().getBody().toString());
+            }            // Simulate an operation that took 5 seconds.
+            long startTime = System.currentTimeMillis();
+        }
+
+        private Optional<ResponseEntity<PaymentData>> getPaymentDataResponseEntity(PaymentData paymentData) {
             ResponseEntity<PaymentData> responseEntity = null;
             try {
                 responseEntity = restTemplate.postForEntity("http://localhost:8080/init/", paymentData, PaymentData.class);
@@ -164,11 +177,7 @@ public class AppScheduler {
                         .build();
                 kafkaProducer.sendMessage(message);
             }
-
-            log.info("Response [{}] ", responseEntity.getBody().toString());
-
-            // Simulate an operation that took 5 seconds.
-            long startTime = System.currentTimeMillis();
+            return Optional.ofNullable(responseEntity);
         }
     }
 
