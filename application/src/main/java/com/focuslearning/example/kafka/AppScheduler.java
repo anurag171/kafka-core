@@ -51,7 +51,7 @@ public class AppScheduler {
     }
 
 
-    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
+    @Scheduled(fixedDelay = 10000, initialDelay = 10000)
     public void freshPaymentGenerator() {
         log.info("Starting fresh payment generator");
         postPayments();
@@ -81,7 +81,7 @@ public class AppScheduler {
                 .build();
     }
 
-    @Scheduled(fixedRate = 20000)
+    @Scheduled(fixedRate = 30000)
     public void clearPayments(){
         log.info("[C] Starting new cycle of scheduled task");
         Predicate<PaymentData> predicate1= paymentData -> paymentData.getStatus().equals(RecordStatus.REPLAY.getAction());
@@ -108,7 +108,7 @@ public class AppScheduler {
         log.info("[C] Done the cycle of scheduled task");
     }
 
-    @Scheduled(fixedDelay = 20000, initialDelay = 10000)
+    @Scheduled(fixedDelay = 15000, initialDelay = 15000)
     public void stalePaymentGenerator() {
         log.info("[B] Starting new cycle of scheduled task");
         List<Object[]> paymentDataList =paymentDataRepository.findAllByLimit(200);
@@ -138,8 +138,12 @@ public class AppScheduler {
         log.info("Payment Consumer [String] received key {}: | Record: {}", paymentData);
         int i =paymentDataRepository.findById(paymentData.getPaymentid()).isPresent() ?
                 paymentDataRepository.update(paymentData) : paymentDataRepository.save(paymentData);
-        new CallPayment(1,this.restTemplate,this.kafkaProducer).getPaymentDataResponseEntity(paymentData);
-        log.info("Done {}",i);
+        Optional<ResponseEntity<PaymentData>> optionalPaymentDataResponseEntity =  new CallPayment(Integer.MAX_VALUE,this.restTemplate,this.kafkaProducer).getPaymentDataResponseEntity(paymentData);
+        int updateP = -1;
+        if(optionalPaymentDataResponseEntity.isPresent()){
+           updateP = paymentDataRepository.updateProcessed(optionalPaymentDataResponseEntity.get().getBody());
+        }
+        log.info("Done {} UpdateP {}",i,updateP);
     }
 
     public class CallPayment implements Runnable{

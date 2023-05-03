@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.focuslearning.example.kafka.PaymentData;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
+@Log4j2
 public class PaymentDataRepositoryImpl implements PaymentDataRepository{
 
     private final JdbcTemplate jdbcTemplate;
@@ -100,6 +102,12 @@ public class PaymentDataRepositoryImpl implements PaymentDataRepository{
 
     @Override
     public int updateById(String whereClause) {
-        return jdbcTemplate.update("UPDATE replay_message SET status='E' where paymentid in " + whereClause);
+        return jdbcTemplate.update("UPDATE replay_message SET status='E' where status <> 'P' and paymentid in " + whereClause);
+    }
+
+    @Override
+    public int updateProcessed(PaymentData body) {
+        log.info("Received payment id {}",body.getPaymentid());
+        return jdbcTemplate.update("UPDATE replay_message SET status='P' where paymentid =? and status<>'E' ", body.getPaymentid());
     }
 }

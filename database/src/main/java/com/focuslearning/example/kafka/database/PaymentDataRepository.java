@@ -24,4 +24,6 @@ public interface PaymentDataRepository {
     int deleteAll();
 
     int updateById(String whereClause);
+
+    int updateProcessed(PaymentData body);
 }
